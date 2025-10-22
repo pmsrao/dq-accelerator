@@ -1,0 +1,42 @@
+dataset: silver.payments
+product: Payments
+domain: Trading
+owner: payments_dp@company.com
+partitions:
+  by: event_date
+  format: yyyy-MM-dd
+defaults:
+  severity: high
+  engine: soda
+  run_policy: soft_fail
+rules:
+  - id: payments.amount.non_negative.v01
+    dq_category: validity
+    dq_check_type: value_range
+    engine: soda
+    columns: [amount]
+    params: { operator: ">=", operand: 0 }
+
+  - id: payments.pk.unique.v01
+    dq_category: uniqueness
+    dq_check_type: uniqueness
+    engine: soda
+    keys: [payment_id]
+
+  - id: payments.fk.account_exists.v01
+    dq_category: integrity
+    dq_check_type: fk_exists
+    engine: sql
+    sql: |
+      SELECT COUNT(*) AS violations
+      FROM silver.payments p
+      LEFT JOIN silver.accounts a ON p.account_id = a.account_id
+      WHERE a.account_id IS NULL AND p.event_date = '${PARTITION_VALUE}'
+    threshold: { operator: "=", operand: 0 }
+    severity: medium
+
+  - id: payments.freshness.hourly.v01
+    dq_category: freshness
+    dq_check_type: freshness_lag
+    engine: soda
+    params: { timestamp_column: ingestion_ts, max_lag_minutes: 75 }

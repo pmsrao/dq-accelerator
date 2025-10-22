@@ -1,0 +1,32 @@
+# Development Environment Configuration
+environment: dev
+
+# Databricks Configuration
+databricks:
+  workspace_url: "https://dev-workspace.cloud.databricks.com"
+  cluster_id: "dev-cluster-id"
+  
+# Data Quality Configuration
+dq:
+  default_engine: "soda"
+  default_severity: "medium"
+  default_run_policy: "soft_fail"
+  max_retries: 3
+  retry_delay_seconds: 30
+  
+# Storage Configuration
+storage:
+  results_table: "dev_dq_results"
+  metrics_table: "dev_dq_metrics"
+  watermark_table: "dev_dq_watermarks"
+  
+# Logging Configuration
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+# Notification Configuration
+notifications:
+  enabled: false
+  slack_webhook: null
+  email_recipients: []

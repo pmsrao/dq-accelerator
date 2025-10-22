@@ -1,0 +1,334 @@
+# Data Quality Accelerator - Cursor Rules
+
+## 1. Project Overview
+This is a Databricks-based Data Quality Accelerator that provides a standardized framework for defining, executing, and monitoring data quality rules. The project follows Databricks best practices and is designed for integration with Databricks Workflows, Airflow, or dbt.
+
+## 2. Code Organization and Structure
+
+### 2.1. Directory Structure Standards
+```
+dq-accelerator/
+├── src/                          # Source code (preferred over root-level Python files)
+│   ├── dq_runner/               # Main DQ execution engine
+│   │   ├── __init__.py
+│   │   ├── runner.py            # Main runner logic
+│   │   ├── engines/             # Execution engines
+│   │   │   ├── __init__.py
+│   │   │   ├── soda_engine.py
+│   │   │   └── sql_engine.py
+│   │   └── compliance_checker.py
+│   ├── schemas/                 # JSON schemas and validation
+│   │   ├── __init__.py
+│   │   └── dq_rule_schema.json
+│   └── utils/                   # Utility modules
+│       ├── __init__.py
+│       ├── watermark_manager.py
+│       └── notifier.py
+├── tests/                       # Test suites
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── config/                      # Configuration files
+│   ├── dev.yaml
+│   ├── staging.yaml
+│   └── prod.yaml
+├── ddl/                         # Database schema definitions
+│   ├── dq_results.sql
+│   └── dq_metrics_mart.sql
+├── examples/                    # Example configurations and rules
+│   ├── payments_rules.yaml
+│   └── sample_config.yaml
+├── docs/                        # Documentation
+├── scripts/                     # Deployment and utility scripts
+├── .databricks/                 # Databricks CLI configuration
+├── requirements.txt             # Python dependencies
+├── pyproject.toml              # Modern Python project configuration
+├── Makefile                    # Build and deployment commands
+└── README.md
+```
+
+### 2.2. File Naming Conventions
+- **Python modules**: `snake_case.py` (e.g., `dq_runner.py`, `soda_engine.py`)
+- **SQL files**: `snake_case.sql` (e.g., `dq_results.sql`)
+- **YAML configs**: `snake_case.yaml` (e.g., `payments_rules.yaml`)
+- **JSON schemas**: `snake_case.json` (e.g., `dq_rule_schema.json`)
+- **Test files**: `test_snake_case.py` (e.g., `test_dq_runner.py`)
+- **Notebooks**: `descriptive-name.ipynb` (e.g., `dq-results-analysis.ipynb`)
+
+### 2.3. Module Organization Principles
+- **Single Responsibility**: Each module should have one clear purpose
+- **Dependency Injection**: Use dependency injection for external dependencies
+- **Interface Segregation**: Define clear interfaces for engines and utilities
+- **Package Structure**: Use `__init__.py` files to define package boundaries
+- **Relative Imports**: Use relative imports within packages (`from . import module`)
+
+## 3. Code Quality Standards
+
+### 3.1. Python Code Style
+- **PEP 8 Compliance**: Follow PEP 8 for all Python code
+- **Type Hints**: Use type hints for function parameters and return values
+- **Docstrings**: Use Google-style docstrings for all public functions and classes
+- **Line Length**: Maximum 88 characters (Black formatter standard)
+- **Import Organization**: Group imports (stdlib, third-party, local) with blank lines
+
+### 3.2. Error Handling
+- **Specific Exceptions**: Use specific exception types, not generic `Exception`
+- **Logging**: Use structured logging with appropriate levels (DEBUG, INFO, WARNING, ERROR)
+- **Graceful Degradation**: Handle errors gracefully without crashing the entire pipeline
+- **Retry Logic**: Implement retry logic for transient failures
+- **Custom Exceptions**: Define custom exceptions for domain-specific errors
+
+### 3.3. Configuration Management
+- **Environment-based Configs**: Use separate config files for dev/staging/prod
+- **Secrets Management**: Use Databricks secrets for sensitive information
+- **Validation**: Validate configuration at startup using Pydantic models
+- **Defaults**: Provide sensible defaults for all configuration options
+
+## 4. Databricks-Specific Best Practices
+
+### 4.1. Data Lakehouse Architecture
+- **Delta Lake**: Use Delta Lake for all data storage with ACID transactions
+- **Partitioning**: Partition data based on common query patterns (e.g., by date)
+- **Schema Evolution**: Use Delta Lake schema evolution capabilities
+- **Time Travel**: Leverage Delta Lake time travel for data versioning
+- **Optimize**: Regular OPTIMIZE and VACUUM operations
+
+### 4.2. Performance Optimization
+- **Lazy Evaluation**: Utilize Spark's lazy evaluation for complex transformations
+- **Caching**: Cache frequently accessed DataFrames with appropriate storage levels
+- **Broadcast Joins**: Use broadcast joins for small lookup tables
+- **Predicate Pushdown**: Push filters down to data sources when possible
+- **Data Skipping**: Leverage Delta Lake data skipping for faster queries
+- **Cluster Sizing**: Right-size clusters based on workload requirements
+
+### 4.3. Job Orchestration
+- **Databricks Jobs**: Use Databricks Jobs for scheduling and orchestration
+- **Workflow Dependencies**: Define clear dependencies between job tasks
+- **Error Handling**: Implement proper error handling and alerting in jobs
+- **Resource Management**: Use job clusters for cost optimization
+- **Monitoring**: Set up job monitoring and alerting
+
+## 5. Data Quality Framework Standards
+
+### 5.1. Rule Definition Schema
+- **YAML Format**: All DQ rules must be defined in YAML format
+- **Schema Validation**: Use JSON Schema for rule validation
+- **Versioning**: Include version numbers in rule IDs (e.g., `v01`, `v02`)
+- **Categorization**: Use standard DQ categories (accuracy, completeness, consistency, etc.)
+- **Engine Specification**: Clearly specify execution engine (soda, sql)
+
+### 5.2. Rule Execution
+- **Idempotent**: All rules must be idempotent and rerunnable
+- **Incremental Processing**: Support incremental/HWM-based execution
+- **Result Persistence**: Store detailed results in structured format
+- **Metrics Collection**: Collect performance and quality metrics
+- **Audit Trail**: Maintain audit trail for all rule executions
+
+### 5.3. Compliance and Validation
+- **Pre-execution Validation**: Validate rules before execution
+- **Schema Compliance**: Ensure all rules comply with defined schema
+- **Dependency Checks**: Validate dependencies and prerequisites
+- **Resource Validation**: Check resource availability before execution
+
+## 6. Testing Standards
+
+### 6.1. Test Organization
+- **Unit Tests**: Test individual functions and classes in isolation
+- **Integration Tests**: Test component interactions and data flows
+- **End-to-End Tests**: Test complete DQ workflows
+- **Test Data**: Use synthetic test data that mirrors production patterns
+- **Test Coverage**: Maintain minimum 80% code coverage
+
+### 6.2. Test Frameworks
+- **pytest**: Use pytest for Python testing
+- **pytest-spark**: Use pytest-spark for Spark-specific testing
+- **Mocking**: Use unittest.mock for external dependencies
+- **Fixtures**: Use pytest fixtures for test setup and teardown
+
+### 6.3. Test Data Management
+- **Synthetic Data**: Generate synthetic data for testing
+- **Data Isolation**: Ensure tests don't interfere with each other
+- **Cleanup**: Properly clean up test data after execution
+- **Versioning**: Version test data alongside code changes
+
+## 7. Security and Compliance
+
+### 7.1. Data Security
+- **Encryption**: Encrypt sensitive data at rest and in transit
+- **Access Control**: Use Unity Catalog for fine-grained access control
+- **Data Masking**: Mask sensitive data in logs and test environments
+- **Audit Logging**: Enable comprehensive audit logging
+
+### 7.2. Code Security
+- **Dependency Scanning**: Regularly scan dependencies for vulnerabilities
+- **Secret Management**: Never hardcode secrets in code
+- **Input Validation**: Validate all inputs to prevent injection attacks
+- **Least Privilege**: Follow principle of least privilege for access
+
+## 8. Documentation Standards
+
+### 8.1. Code Documentation
+- **README**: Comprehensive README with setup and usage instructions
+- **API Documentation**: Document all public APIs and interfaces
+- **Architecture Docs**: Document system architecture and design decisions
+- **Runbooks**: Create operational runbooks for common tasks
+
+### 8.2. Rule Documentation
+- **Rule Descriptions**: Clear descriptions of what each rule validates
+- **Business Context**: Document business rationale for rules
+- **SLA Definitions**: Document SLAs and thresholds
+- **Troubleshooting**: Document common issues and resolutions
+
+## 9. Deployment and CI/CD
+
+### 9.1. Version Control
+- **Git Workflow**: Use feature branches with pull request reviews
+- **Commit Messages**: Use conventional commit message format
+- **Branch Protection**: Protect main branch with required reviews
+- **Semantic Versioning**: Use semantic versioning for releases
+
+### 9.2. Continuous Integration
+- **Automated Testing**: Run tests on every commit
+- **Code Quality**: Enforce code quality checks (linting, formatting)
+- **Security Scanning**: Scan for security vulnerabilities
+- **Dependency Updates**: Automate dependency updates where safe
+
+### 9.3. Deployment
+- **Environment Promotion**: Promote through dev → staging → prod
+- **Rollback Strategy**: Have rollback procedures for failed deployments
+- **Blue-Green Deployment**: Use blue-green deployment for zero-downtime
+- **Monitoring**: Monitor deployments and system health
+
+## 10. Monitoring and Observability
+
+### 10.1. Logging
+- **Structured Logging**: Use structured logging with consistent format
+- **Log Levels**: Use appropriate log levels (DEBUG, INFO, WARNING, ERROR)
+- **Correlation IDs**: Use correlation IDs to track requests across services
+- **Log Aggregation**: Centralize logs for analysis and alerting
+
+### 10.2. Metrics
+- **Business Metrics**: Track DQ pass rates, rule execution times
+- **Technical Metrics**: Monitor system performance and resource usage
+- **Custom Metrics**: Define custom metrics for domain-specific monitoring
+- **Dashboards**: Create dashboards for key metrics visualization
+
+### 10.3. Alerting
+- **Threshold-based Alerts**: Set up alerts for critical thresholds
+- **Anomaly Detection**: Use anomaly detection for unusual patterns
+- **Escalation Procedures**: Define escalation procedures for alerts
+- **Alert Fatigue**: Avoid alert fatigue with proper tuning
+
+## 11. Development Workflow
+
+### 11.1. Local Development
+- **Environment Setup**: Use consistent development environment setup
+- **Dependency Management**: Use virtual environments or conda
+- **IDE Configuration**: Configure IDE with linting and formatting
+- **Pre-commit Hooks**: Use pre-commit hooks for code quality
+
+### 11.2. Code Review
+- **Pull Request Reviews**: Require reviews for all changes
+- **Review Checklist**: Use standardized review checklists
+- **Automated Checks**: Run automated checks before manual review
+- **Knowledge Sharing**: Use reviews for knowledge sharing
+
+### 11.3. Refactoring Guidelines
+- **Small Increments**: Make small, focused changes
+- **Test Coverage**: Maintain test coverage during refactoring
+- **Documentation Updates**: Update documentation with code changes
+- **Backward Compatibility**: Maintain backward compatibility when possible
+
+## 12. Anti-patterns to Avoid
+
+### 12.1. Code Anti-patterns
+- **Hardcoded Values**: Never hardcode configuration values
+- **Large Functions**: Avoid functions longer than 50 lines
+- **Deep Nesting**: Avoid nesting deeper than 4 levels
+- **Copy-Paste Code**: Refactor duplicated code into reusable functions
+- **Ignoring Errors**: Always handle errors appropriately
+
+### 12.2. Data Anti-patterns
+- **Large DataFrames in Memory**: Avoid loading large datasets into memory
+- **Inefficient Joins**: Optimize join operations for performance
+- **Missing Partitioning**: Always partition large datasets appropriately
+- **Schema Drift**: Handle schema changes gracefully
+- **Data Duplication**: Avoid unnecessary data duplication
+
+### 12.3. Architecture Anti-patterns
+- **Tight Coupling**: Avoid tight coupling between components
+- **Circular Dependencies**: Prevent circular dependencies
+- **God Objects**: Avoid classes with too many responsibilities
+- **Premature Optimization**: Don't optimize before measuring
+- **Over-engineering**: Keep solutions simple and appropriate
+
+## 13. Performance Guidelines
+
+### 13.1. Spark Optimization
+- **Partition Pruning**: Use partition pruning for better performance
+- **Column Pruning**: Select only required columns
+- **Predicate Pushdown**: Push filters to data sources
+- **Broadcast Variables**: Use broadcast variables for small datasets
+- **Caching Strategy**: Cache DataFrames with appropriate storage levels
+
+### 13.2. Memory Management
+- **Garbage Collection**: Monitor and tune GC settings
+- **Off-heap Memory**: Use off-heap memory for large datasets
+- **Memory Leaks**: Avoid memory leaks in long-running processes
+- **Resource Cleanup**: Properly clean up resources after use
+
+### 13.3. I/O Optimization
+- **Batch Operations**: Use batch operations for better throughput
+- **Compression**: Use appropriate compression for data storage
+- **File Formats**: Choose optimal file formats (Parquet, Delta)
+- **Network Optimization**: Minimize data movement across network
+
+## 14. Integration Standards
+
+### 14.1. External Systems
+- **API Design**: Design clean, RESTful APIs
+- **Error Handling**: Handle external system failures gracefully
+- **Rate Limiting**: Implement rate limiting for external calls
+- **Circuit Breakers**: Use circuit breakers for resilience
+
+### 14.2. Data Sources
+- **Connection Pooling**: Use connection pooling for database connections
+- **Retry Logic**: Implement retry logic for transient failures
+- **Data Validation**: Validate data from external sources
+- **Schema Evolution**: Handle schema changes in external systems
+
+## 15. Maintenance and Support
+
+### 15.1. Code Maintenance
+- **Regular Updates**: Keep dependencies and libraries updated
+- **Technical Debt**: Address technical debt regularly
+- **Code Reviews**: Use code reviews to maintain quality
+- **Refactoring**: Refactor code to improve maintainability
+
+### 15.2. Documentation Maintenance
+- **Keep Updated**: Keep documentation current with code changes
+- **Version Control**: Version documentation alongside code
+- **User Feedback**: Incorporate user feedback into documentation
+- **Searchability**: Make documentation easily searchable
+
+### 15.3. Support Procedures
+- **Issue Tracking**: Use issue tracking for bugs and feature requests
+- **Response Times**: Define response time SLAs for support
+- **Escalation Paths**: Define clear escalation paths
+- **Knowledge Base**: Maintain knowledge base for common issues
+
+---
+
+## Implementation Notes
+
+When implementing these rules:
+
+1. **Start Small**: Begin with the most critical rules and gradually expand
+2. **Team Alignment**: Ensure team alignment on standards and practices
+3. **Tooling**: Set up appropriate tooling to enforce standards
+4. **Training**: Provide training on new standards and practices
+5. **Feedback Loop**: Establish feedback loop for continuous improvement
+6. **Automation**: Automate enforcement where possible
+7. **Documentation**: Keep this document updated as practices evolve
+
+Remember: These rules are guidelines, not rigid constraints. Adapt them to your specific project needs while maintaining the core principles of code quality, maintainability, and best practices.

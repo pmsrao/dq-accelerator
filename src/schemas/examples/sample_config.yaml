@@ -1,0 +1,14 @@
+data_source:
+  type: spark
+  # For Databricks, use the JDBC/cluster settings or a SparkSession in the runner.
+  # placeholder values:
+  jdbc_url: databricks://<workspace>/;httpPath=<path>
+  user_env: SODA_USER
+  pwd_env: SODA_PWD
+
+run:
+  dataset: silver.payments
+  partitions:
+    from: 2025-10-01
+    to: 2025-10-21
+  rule_file: ./examples/payments_rules.yaml

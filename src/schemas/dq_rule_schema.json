@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DQ Rules Spec",
+  "type": "object",
+  "required": [
+    "dataset",
+    "product",
+    "domain",
+    "rules"
+  ],
+  "properties": {
+    "dataset": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "partitions": {
+      "type": "object",
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "engine": {
+          "enum": [
+            "soda",
+            "sql"
+          ]
+        },
+        "run_policy": {
+          "enum": [
+            "soft_fail",
+            "hard_fail"
+          ]
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "dq_category",
+          "dq_check_type",
+          "engine"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "dq_category": {
+            "enum": [
+              "accuracy",
+              "completeness",
+              "consistency",
+              "conformity",
+              "uniqueness",
+              "freshness",
+              "validity",
+              "integrity",
+              "anomaly"
+            ]
+          },
+          "dq_check_type": {
+            "type": "string"
+          },
+          "engine": {
+            "enum": [
+              "soda",
+              "sql"
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "params": {
+            "type": "object"
+          },
+          "sql": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "object",
+            "properties": {
+              "operator": {
+                "enum": [
+                  ">",
+                  ">=",
+                  "<",
+                  "<=",
+                  "=",
+                  "!=",
+                  "<>",
+                  "between"
+                ]
+              },
+              "operand": {}
+            }
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "sla": {
+            "type": "object",
+            "properties": {
+              "target_pass_rate": {
+                "type": "number"
+              },
+              "window_days": {
+                "type": "integer"
+              }
+            }
+          },
+          "sampling": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "enum": [
+                  "none",
+                  "rows",
+                  "percent"
+                ]
+              },
+              "value": {
+                "type": [
+                  "integer",
+                  "number"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
