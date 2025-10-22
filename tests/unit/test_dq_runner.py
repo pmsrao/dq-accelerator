@@ -4,41 +4,31 @@ Unit tests for DQ Runner module.
 
 import pytest
 from unittest.mock import Mock, patch
-from src.dq_runner.runner import DQRunner, DQResult, DQRunSummary
+from src.libraries.dq_runner.databricks_runner import DQRunner, DQResult, DQRunSummary
 
 
 class TestDQRunner:
     """Test cases for DQRunner class."""
     
-    def test_init(self):
+    @patch('src.libraries.dq_runner.databricks_runner.DQRunner._init_watermark_manager')
+    def test_init(self, mock_init_watermark):
         """Test DQRunner initialization."""
+        mock_watermark_manager = Mock()
+        mock_init_watermark.return_value = mock_watermark_manager
+        
         runner = DQRunner()
-        assert runner.config == {}
+        assert runner is not None
         assert runner.soda_engine is None
         assert runner.sql_engine is None
         
-    def test_init_with_config(self):
-        """Test DQRunner initialization with config."""
-        config = {"test": "value"}
-        runner = DQRunner(config=config)
-        assert runner.config == config
+    @patch('src.libraries.dq_runner.databricks_runner.DQRunner._init_watermark_manager')
+    def test_init_with_watermark_path(self, mock_init_watermark):
+        """Test DQRunner initialization with custom watermark path."""
+        mock_watermark_manager = Mock()
+        mock_init_watermark.return_value = mock_watermark_manager
         
-    def test_filter_rules_by_engine(self):
-        """Test filtering rules by engine."""
-        runner = DQRunner()
-        rules = [
-            {"id": "rule1", "engine": "soda"},
-            {"id": "rule2", "engine": "sql"},
-            {"id": "rule3", "engine": "soda"}
-        ]
-        
-        soda_rules = runner.filter_rules_by_engine(rules, "soda")
-        assert len(soda_rules) == 2
-        assert all(rule["engine"] == "soda" for rule in soda_rules)
-        
-        sql_rules = runner.filter_rules_by_engine(rules, "sql")
-        assert len(sql_rules) == 1
-        assert sql_rules[0]["engine"] == "sql"
+        runner = DQRunner(watermark_table_path="/custom/watermarks")
+        assert runner is not None
 
 
 class TestDQResult:
@@ -67,9 +57,6 @@ class TestDQRunSummary:
         summary = DQRunSummary(
             run_id="test-run-123",
             dataset="test.dataset",
-            partition_value="2025-01-01",
-            started_ts="2025-01-01 10:00:00",
-            ended_ts="2025-01-01 10:01:00",
             total_rules=10,
             passed_rules=8,
             failed_rules=2,

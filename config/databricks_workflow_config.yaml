@@ -1,0 +1,151 @@
+# Databricks Workflow Configuration
+# This file contains configuration for Databricks workflow integration
+
+databricks:
+  workspace_url: "https://your-workspace.cloud.databricks.com"
+  token: "${DATABRICKS_TOKEN}"  # Use environment variable for security
+  
+  # Default cluster configuration
+  default_cluster:
+    spark_version: "13.3.x-scala2.12"
+    node_type_id: "i3.xlarge"
+    driver_node_type_id: "i3.xlarge"
+    num_workers: 2
+    spark_conf:
+      spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+      spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      spark.databricks.delta.retentionDurationCheck.enabled: "false"
+    aws_attributes:
+      availability: "SPOT_WITH_FALLBACK"
+      zone_id: "us-west-2a"
+  
+  # Email notifications
+  email_notifications:
+    on_start: []
+    on_success: ["dq-team@company.com"]
+    on_failure: ["dq-team@company.com", "data-engineering@company.com"]
+  
+  # Job settings
+  job_settings:
+    max_concurrent_runs: 1
+    timeout_seconds: 3600
+
+# Workflow definitions
+workflows:
+  # Daily DQ processing for all datasets
+  daily_dq_processing:
+    schedule: "0 2 * * *"  # Daily at 2 AM UTC
+    incremental: true
+    datasets:
+      - "silver.payments"
+      - "silver.accounts"
+      - "silver.transactions"
+      - "gold.customer_summary"
+    
+    # Dataset-specific configurations
+    dataset_configs:
+      "silver.payments":
+        watermark_column: "event_date"
+        rules_file: "src/schemas/examples/payments_rules.yaml"
+      
+      "silver.accounts":
+        watermark_column: "load_date"
+        rules_file: "src/schemas/examples/accounts_rules.yaml"
+      
+      "silver.transactions":
+        watermark_column: "transaction_date"
+        rules_file: "src/schemas/examples/transactions_rules.yaml"
+      
+      "gold.customer_summary":
+        watermark_column: "snapshot_date"
+        rules_file: "src/schemas/examples/customer_summary_rules.yaml"
+  
+  # Hourly processing for critical datasets
+  hourly_critical_processing:
+    schedule: "0 * * * *"  # Every hour
+    incremental: true
+    datasets:
+      - "silver.payments"
+    
+    dataset_configs:
+      "silver.payments":
+        watermark_column: "event_date"
+        rules_file: "src/schemas/examples/payments_rules.yaml"
+  
+  # Weekly full processing
+  weekly_full_processing:
+    schedule: "0 1 * * 0"  # Weekly on Sunday at 1 AM UTC
+    incremental: false
+    datasets:
+      - "silver.payments"
+      - "silver.accounts"
+    
+    dataset_configs:
+      "silver.payments":
+        rules_file: "src/schemas/examples/payments_rules.yaml"
+      
+      "silver.accounts":
+        rules_file: "src/schemas/examples/accounts_rules.yaml"
+
+# Watermark management
+watermark:
+  table_path: "/tmp/dq_watermarks"
+  retention_days: 90
+  cleanup_schedule: "0 0 1 * *"  # Monthly cleanup
+
+# Monitoring and alerting
+monitoring:
+  # Databricks monitoring
+  databricks:
+    enable_job_monitoring: true
+    alert_on_failure: true
+    alert_on_timeout: true
+  
+  # Custom metrics
+  metrics:
+    enable_custom_metrics: true
+    metrics_table: "dq_metrics.metrics_mart"
+    
+  # Dashboard integration
+  dashboards:
+    grafana:
+      enabled: false
+      url: "https://grafana.company.com"
+      api_key: "${GRAFANA_API_KEY}"
+    
+    tableau:
+      enabled: false
+      server_url: "https://tableau.company.com"
+      username: "${TABLEAU_USERNAME}"
+      password: "${TABLEAU_PASSWORD}"
+
+# Environment-specific overrides
+environments:
+  dev:
+    databricks:
+      default_cluster:
+        num_workers: 1
+        node_type_id: "i3.large"
+    
+    workflows:
+      daily_dq_processing:
+        schedule: "0 6 * * *"  # Later in dev environment
+  
+  staging:
+    databricks:
+      default_cluster:
+        num_workers: 2
+        node_type_id: "i3.xlarge"
+  
+  prod:
+    databricks:
+      default_cluster:
+        num_workers: 4
+        node_type_id: "i3.2xlarge"
+      
+      email_notifications:
+        on_failure: ["dq-team@company.com", "data-engineering@company.com", "oncall@company.com"]
+    
+    workflows:
+      daily_dq_processing:
+        max_concurrent_runs: 2  # Allow more concurrent runs in prod

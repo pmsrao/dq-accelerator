@@ -34,6 +34,7 @@ dependencies = [
     "pydantic>=2.0",
     "pyspark>=3.4.0",
     "soda-core-spark-df>=3.0.0",
+    "databricks-sdk>=0.18.0",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +61,12 @@ Documentation = "https://github.com/company/dq-accelerator#readme"
 "Bug Tracker" = "https://github.com/company/dq-accelerator/issues"
 
 [project.scripts]
-dq-runner = "src.dq_runner.runner:main"
+dq-incremental = "src.jobs.databricks_job_entries:run_incremental_job"
+dq-full = "src.jobs.databricks_job_entries:run_full_job"
+dq-metrics-daily = "src.libraries.utils.metrics_jobs:populate_daily_metrics"
+dq-metrics-health = "src.libraries.utils.metrics_jobs:generate_health_summary"
+dq-metrics-cleanup = "src.libraries.utils.metrics_jobs:cleanup_old_metrics"
+dq-metrics-trends = "src.libraries.utils.metrics_jobs:calculate_trends"
 
 [tool.setuptools.packages.find]
 where = ["."]

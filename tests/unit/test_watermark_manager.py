@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, MagicMock
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
-from src.utils.watermark_manager import WatermarkManager, WatermarkRecord
+from src.libraries.utils.watermark_manager import WatermarkManager, WatermarkRecord
 
 
 class TestWatermarkRecord:
@@ -88,7 +88,7 @@ class TestWatermarkManager:
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         
         # Mock the col function to avoid Spark context issues
-        with patch('src.utils.watermark_manager.col') as mock_col:
+        with patch('src.libraries.utils.watermark_manager.col') as mock_col:
             mock_col.return_value = Mock()
             result = watermark_manager.get_watermark("nonexistent.dataset")
         
@@ -112,7 +112,7 @@ class TestWatermarkManager:
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         
         # Mock the col function to avoid Spark context issues
-        with patch('src.utils.watermark_manager.col') as mock_col:
+        with patch('src.libraries.utils.watermark_manager.col') as mock_col:
             mock_col.return_value = Mock()
             result = watermark_manager.get_watermark("silver.payments")
         
@@ -138,7 +138,7 @@ class TestWatermarkManager:
         mock_write.saveAsTable.return_value = None
         
         # Mock the col function to avoid Spark context issues
-        with patch('src.utils.watermark_manager.col') as mock_col:
+        with patch('src.libraries.utils.watermark_manager.col') as mock_col:
             mock_col.return_value = Mock()
             # Test setting watermark
             watermark_manager.set_watermark(
@@ -203,7 +203,7 @@ class TestWatermarkManager:
         mock_write.saveAsTable.return_value = None
         
         # Mock the col function to avoid Spark context issues
-        with patch('src.utils.watermark_manager.col') as mock_col:
+        with patch('src.libraries.utils.watermark_manager.col') as mock_col:
             mock_col.return_value = Mock()
             # Test deleting watermark
             watermark_manager.delete_watermark("silver.payments")
