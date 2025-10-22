@@ -168,11 +168,11 @@ class DQRunner:
         
         self.logger.info(f"Last processed watermark: {last_processed_value}")
         
-        # Get new partitions to process
-        new_partitions = self._get_new_partitions(dataset, watermark_column, last_processed_value)
+        # Get new watermark values to process
+        new_watermark_values = self._get_new_watermark_values(dataset, watermark_column, last_processed_value)
         
-        if not new_partitions:
-            self.logger.info("No new partitions to process")
+        if not new_watermark_values:
+            self.logger.info("No new watermark values to process")
             return DQRunSummary(
                 run_id=str(uuid.uuid4()),
                 dataset=dataset,
@@ -182,33 +182,33 @@ class DQRunner:
                 execution_time_seconds=0.0
             )
         
-        self.logger.info(f"Processing {len(new_partitions)} new partitions: {new_partitions}")
+        self.logger.info(f"Processing {len(new_watermark_values)} new watermark values: {new_watermark_values}")
         
-        # Process each partition
+        # Process each watermark value
         all_results = []
         total_start_time = time.time()
         
-        for partition_value in new_partitions:
+        for watermark_value in new_watermark_values:
             try:
-                self.logger.info(f"Processing partition: {partition_value}")
+                self.logger.info(f"Processing watermark value: {watermark_value}")
                 
-                # Run DQ rules for this partition
-                partition_results = self._run_partition(rules_spec, dataset, partition_value)
-                all_results.extend(partition_results)
+                # Run DQ rules for this watermark value
+                watermark_results = self._run_watermark_value(rules_spec, dataset, watermark_value)
+                all_results.extend(watermark_results)
                 
                 # Update watermark after successful processing
                 self.watermark_manager.set_watermark(
                     dataset=dataset,
                     watermark_column=watermark_column,
-                    watermark_value=partition_value,
+                    watermark_value=watermark_value,
                     dq_run_completed_ts=datetime.now()
                 )
                 
-                self.logger.info(f"Successfully processed partition: {partition_value}")
+                self.logger.info(f"Successfully processed watermark value: {watermark_value}")
                 
             except Exception as e:
-                self.logger.error(f"Failed to process partition {partition_value}: {e}")
-                # Continue with next partition instead of failing entire run
+                self.logger.error(f"Failed to process watermark value {watermark_value}: {e}")
+                # Continue with next watermark value instead of failing entire run
                 continue
         
         total_execution_time = time.time() - total_start_time
@@ -216,17 +216,17 @@ class DQRunner:
         # Create summary
         summary = self._create_run_summary(all_results, dataset, total_execution_time)
         
-        self.logger.info(f"Incremental DQ run completed. Processed {len(new_partitions)} partitions")
+        self.logger.info(f"Incremental DQ run completed. Processed {len(new_watermark_values)} watermark values")
         return summary
     
-    def _get_new_partitions(
+    def _get_new_watermark_values(
         self,
         dataset: str,
         watermark_column: str,
         last_processed_value: Optional[str]
     ) -> List[str]:
         """
-        Get list of new partitions to process using Databricks SQL.
+        Get list of new watermark values to process using Databricks SQL.
         
         Args:
             dataset: Dataset name
@@ -234,12 +234,12 @@ class DQRunner:
             last_processed_value: Last processed watermark value
             
         Returns:
-            List of partition values to process
+            List of watermark values to process
         """
         try:
             spark = self._get_spark_session()
             
-            # Query to find new partitions
+            # Query to find new watermark values
             if last_processed_value:
                 sql = f"""
                 SELECT DISTINCT {watermark_column}
@@ -254,32 +254,32 @@ class DQRunner:
                 ORDER BY {watermark_column}
                 """
             
-            # Execute query to get partitions
+            # Execute query to get watermark values
             result_df = spark.sql(sql)
-            partitions = [row[watermark_column] for row in result_df.collect()]
+            watermark_values = [row[watermark_column] for row in result_df.collect()]
             
-            return partitions
+            return watermark_values
             
         except Exception as e:
-            self.logger.error(f"Failed to get new partitions: {e}")
+            self.logger.error(f"Failed to get new watermark values: {e}")
             return []
     
-    def _run_partition(
+    def _run_watermark_value(
         self,
         rules_spec: Dict[str, Any],
         dataset: str,
-        partition_value: str
+        watermark_value: str
     ) -> List[DQResult]:
         """
-        Run DQ rules for a specific partition.
+        Run DQ rules for a specific watermark value.
         
         Args:
             rules_spec: Rule specification dictionary
             dataset: Dataset name
-            partition_value: Partition value to process
+            watermark_value: Watermark value to process
             
         Returns:
-            List of DQ results for the partition
+            List of DQ results for the watermark value
         """
         # Initialize engines if not already done
         self._initialize_engines()
@@ -294,7 +294,7 @@ class DQRunner:
         # Execute Soda rules
         if soda_rules and self.soda_engine:
             try:
-                soda_results, _, _ = self.soda_engine.run(dataset, soda_rules, partition_value)
+                soda_results, _, _ = self.soda_engine.run(dataset, soda_rules, watermark_value)
                 for result in soda_results:
                     all_results.append(DQResult(
                         rule_id=result["rule_id"],
@@ -318,7 +318,7 @@ class DQRunner:
         # Execute SQL rules
         if sql_rules and self.sql_engine:
             try:
-                sql_results, _ = self.sql_engine.run(sql_rules, partition_value)
+                sql_results, _ = self.sql_engine.run(sql_rules, watermark_value)
                 for result in sql_results:
                     all_results.append(DQResult(
                         rule_id=result["rule_id"],
