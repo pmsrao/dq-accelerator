@@ -87,7 +87,10 @@ class TestWatermarkManager:
         mock_df.filter.return_value.collect.return_value = []
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         
-        result = watermark_manager.get_watermark("nonexistent.dataset")
+        # Mock the col function to avoid Spark context issues
+        with patch('src.utils.watermark_manager.col') as mock_col:
+            mock_col.return_value = Mock()
+            result = watermark_manager.get_watermark("nonexistent.dataset")
         
         assert result is None
     
@@ -108,7 +111,10 @@ class TestWatermarkManager:
         mock_df.filter.return_value.collect.return_value = [mock_record]
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         
-        result = watermark_manager.get_watermark("silver.payments")
+        # Mock the col function to avoid Spark context issues
+        with patch('src.utils.watermark_manager.col') as mock_col:
+            mock_col.return_value = Mock()
+            result = watermark_manager.get_watermark("silver.payments")
         
         assert result is not None
         assert isinstance(result, WatermarkRecord)
@@ -123,17 +129,23 @@ class TestWatermarkManager:
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         watermark_manager.spark.createDataFrame.return_value = mock_df
         
-        # Mock write operations
+        # Mock write operations - create a proper chain
         mock_write = Mock()
         mock_df.write = mock_write
-        mock_write.format.return_value.mode.return_value.option.return_value.saveAsTable.return_value = None
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.option.return_value = mock_write
+        mock_write.saveAsTable.return_value = None
         
-        # Test setting watermark
-        watermark_manager.set_watermark(
-            dataset="silver.payments",
-            partition_column="event_date",
-            last_success_value="2025-01-16"
-        )
+        # Mock the col function to avoid Spark context issues
+        with patch('src.utils.watermark_manager.col') as mock_col:
+            mock_col.return_value = Mock()
+            # Test setting watermark
+            watermark_manager.set_watermark(
+                dataset="silver.payments",
+                watermark_column="event_date",
+                watermark_value="2025-01-16"
+            )
         
         # Verify createDataFrame was called
         watermark_manager.spark.createDataFrame.assert_called_once()
@@ -182,13 +194,19 @@ class TestWatermarkManager:
         mock_df.filter.return_value = mock_df
         watermark_manager.spark.read.format.return_value.load.return_value = mock_df
         
-        # Mock write operations
+        # Mock write operations - create a proper chain
         mock_write = Mock()
         mock_df.write = mock_write
-        mock_write.format.return_value.mode.return_value.option.return_value.saveAsTable.return_value = None
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.option.return_value = mock_write
+        mock_write.saveAsTable.return_value = None
         
-        # Test deleting watermark
-        watermark_manager.delete_watermark("silver.payments")
+        # Mock the col function to avoid Spark context issues
+        with patch('src.utils.watermark_manager.col') as mock_col:
+            mock_col.return_value = Mock()
+            # Test deleting watermark
+            watermark_manager.delete_watermark("silver.payments")
         
         # Verify filter was called to exclude the dataset
         mock_df.filter.assert_called_once()

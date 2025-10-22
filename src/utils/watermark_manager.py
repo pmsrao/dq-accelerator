@@ -7,7 +7,7 @@ efficient incremental processing.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -31,7 +31,7 @@ class WatermarkRecord:
         self.watermark_column = watermark_column
         self.watermark_value = watermark_value
         self.dq_run_completed_ts = dq_run_completed_ts
-        self.updated_ts = updated_ts or datetime.utcnow()
+        self.updated_ts = updated_ts or datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for DataFrame operations."""
@@ -151,16 +151,16 @@ class WatermarkManager:
             # Get the most recent record (should be only one per dataset)
             record = records[0]
             
-        watermark = WatermarkRecord(
-            dataset=record["dataset"],
-            watermark_column=record["watermark_column"],
-            watermark_value=record["watermark_value"],
-            dq_run_completed_ts=record["dq_run_completed_ts"],
-            updated_ts=record["updated_ts"]
-        )
-        
-        self.logger.info(f"Retrieved watermark for {dataset}: {watermark.watermark_value}")
-        return watermark
+            watermark = WatermarkRecord(
+                dataset=record["dataset"],
+                watermark_column=record["watermark_column"],
+                watermark_value=record["watermark_value"],
+                dq_run_completed_ts=record["dq_run_completed_ts"],
+                updated_ts=record["updated_ts"]
+            )
+            
+            self.logger.info(f"Retrieved watermark for {dataset}: {watermark.watermark_value}")
+            return watermark
             
         except Exception as e:
             self.logger.error(f"Failed to get watermark for dataset {dataset}: {e}")
@@ -184,7 +184,7 @@ class WatermarkManager:
         """
         try:
             if dq_run_completed_ts is None:
-                dq_run_completed_ts = datetime.utcnow()
+                dq_run_completed_ts = datetime.now(timezone.utc)
             
             # Create new watermark record
             new_watermark = WatermarkRecord(
