@@ -5,25 +5,46 @@ This is a Databricks-based Data Quality Accelerator that provides a standardized
 
 ## 2. Code Organization and Structure
 
-### 2.1. Directory Structure Standards
+### 2.1. Databricks Best Practices Structure
+This project follows Databricks repository best practices with the following structure:
+- **`src/jobs/`**: Databricks job definitions and entry points
+- **`src/libraries/`**: Reusable Python packages and modules
+- **`src/sql/`**: SQL DDL files and queries
+- **`src/notebooks/`**: Databricks notebooks (if needed)
+- **`src/schemas/`**: JSON schemas and rule definitions
+
+**Important**: This project is optimized for Unity Catalog environments where table locations are managed automatically by the catalog and schema, not by physical paths.
+
+### 2.2. Directory Structure Standards
 ```
 dq-accelerator/
-├── src/                          # Source code (preferred over root-level Python files)
-│   ├── dq_runner/               # Main DQ execution engine
-│   │   ├── __init__.py
-│   │   ├── runner.py            # Main runner logic
-│   │   ├── engines/             # Execution engines
-│   │   │   ├── __init__.py
-│   │   │   ├── soda_engine.py
-│   │   │   └── sql_engine.py
-│   │   └── compliance_checker.py
-│   ├── schemas/                 # JSON schemas and validation
-│   │   ├── __init__.py
-│   │   └── dq_rule_schema.json
-│   └── utils/                   # Utility modules
-│       ├── __init__.py
-│       ├── watermark_manager.py
-│       └── notifier.py
+├── src/                          # Source code (Databricks best practices)
+│   ├── jobs/                     # Databricks job definitions
+│   │   └── databricks_job_entries.py
+│   ├── libraries/                # Reusable code modules
+│   │   ├── dq_runner/            # DQ execution engine
+│   │   │   ├── databricks_runner.py
+│   │   │   └── engines/
+│   │   │       ├── soda_engine.py
+│   │   │       └── sql_engine.py
+│   │   ├── integrations/          # External system integrations
+│   │   │   └── databricks_workflow.py
+│   │   ├── utils/                # Utility modules
+│   │   │   ├── watermark_manager.py
+│   │   │   ├── metrics_mart_populator.py
+│   │   │   └── metrics_jobs.py
+│   │   └── validation/           # Validation and compliance
+│   │       └── compliance_checker.py
+│   ├── schemas/                  # JSON schemas and rule definitions
+│   │   ├── dq_rule_schema.json
+│   │   └── examples/
+│   │       ├── payments_rules.yaml
+│   │       └── sample_config.yaml
+│   ├── sql/                      # SQL DDL files
+│   │   ├── dq_results.sql
+│   │   ├── dq_watermarks.sql
+│   │   └── dq_metrics_mart.sql
+│   └── notebooks/                # Databricks notebooks (if needed)
 ├── tests/                       # Test suites
 │   ├── unit/
 │   ├── integration/
@@ -32,12 +53,6 @@ dq-accelerator/
 │   ├── dev.yaml
 │   ├── staging.yaml
 │   └── prod.yaml
-├── ddl/                         # Database schema definitions
-│   ├── dq_results.sql
-│   └── dq_metrics_mart.sql
-├── examples/                    # Example configurations and rules
-│   ├── payments_rules.yaml
-│   └── sample_config.yaml
 ├── docs/                        # Documentation
 ├── scripts/                     # Deployment and utility scripts
 ├── .databricks/                 # Databricks CLI configuration
