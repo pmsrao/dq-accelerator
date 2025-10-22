@@ -65,7 +65,7 @@ class WatermarkManager:
     def __init__(
         self,
         spark: SparkSession,
-        watermark_table_path: str,
+        watermark_table_name: str = "dq_watermarks",
         logger: Optional[logging.Logger] = None
     ):
         """
@@ -73,11 +73,11 @@ class WatermarkManager:
         
         Args:
             spark: Spark session for DataFrame operations
-            watermark_table_path: Path to the Delta table for storing watermarks
+            watermark_table_name: Name of the Delta table for storing watermarks (Unity Catalog managed)
             logger: Optional logger instance
         """
         self.spark = spark
-        self.watermark_table_path = watermark_table_path
+        self.watermark_table_name = watermark_table_name
         self.logger = logger or self._setup_logger()
         
         # Initialize the watermark table if it doesn't exist
@@ -100,11 +100,11 @@ class WatermarkManager:
         """Ensure the watermark table exists, create if it doesn't."""
         try:
             # Try to read the table to check if it exists
-            self.spark.read.format("delta").load(self.watermark_table_path).limit(1).collect()
-            self.logger.info(f"Watermark table exists at {self.watermark_table_path}")
+            self.spark.table(self.watermark_table_name).limit(1).collect()
+            self.logger.info(f"Watermark table exists: {self.watermark_table_name}")
         except Exception:
             # Table doesn't exist, create it
-            self.logger.info(f"Creating watermark table at {self.watermark_table_path}")
+            self.logger.info(f"Creating watermark table: {self.watermark_table_name}")
             self._create_watermark_table()
     
     def _create_watermark_table(self) -> None:
@@ -113,14 +113,13 @@ class WatermarkManager:
             # Create empty DataFrame with the schema
             empty_df = self.spark.createDataFrame([], self.WATERMARK_SCHEMA)
             
-            # Write as Delta table
+            # Write as Delta table (Unity Catalog managed)
             empty_df.write \
                 .format("delta") \
                 .mode("overwrite") \
-                .option("path", self.watermark_table_path) \
-                .saveAsTable("watermark_table")
+                .saveAsTable(self.watermark_table_name)
             
-            self.logger.info("Watermark table created successfully")
+            self.logger.info(f"Watermark table created successfully: {self.watermark_table_name}")
         except Exception as e:
             self.logger.error(f"Failed to create watermark table: {e}")
             raise
@@ -136,7 +135,7 @@ class WatermarkManager:
             WatermarkRecord if found, None otherwise
         """
         try:
-            df = self.spark.read.format("delta").load(self.watermark_table_path)
+            df = self.spark.table(self.watermark_table_name)
             
             # Filter for the specific dataset
             watermark_df = df.filter(col("dataset") == dataset)
@@ -198,18 +197,17 @@ class WatermarkManager:
             watermark_df = self.spark.createDataFrame([new_watermark.to_dict()], self.WATERMARK_SCHEMA)
             
             # Read existing table
-            existing_df = self.spark.read.format("delta").load(self.watermark_table_path)
+            existing_df = self.spark.table(self.watermark_table_name)
             
             # Remove existing record for this dataset and add new one
             filtered_df = existing_df.filter(col("dataset") != dataset)
             combined_df = filtered_df.union(watermark_df)
             
-            # Write back to Delta table
+            # Write back to Delta table (Unity Catalog managed)
             combined_df.write \
                 .format("delta") \
                 .mode("overwrite") \
-                .option("path", self.watermark_table_path) \
-                .saveAsTable("watermark_table")
+                .saveAsTable(self.watermark_table_name)
             
             self.logger.info(f"Updated watermark for {dataset}: {watermark_value}")
             
@@ -225,7 +223,7 @@ class WatermarkManager:
             List of WatermarkRecord objects
         """
         try:
-            df = self.spark.read.format("delta").load(self.watermark_table_path)
+            df = self.spark.table(self.watermark_table_name)
             records = df.collect()
             
             watermarks = []
@@ -255,17 +253,16 @@ class WatermarkManager:
         """
         try:
             # Read existing table
-            df = self.spark.read.format("delta").load(self.watermark_table_path)
+            df = self.spark.table(self.watermark_table_name)
             
             # Filter out the dataset
             filtered_df = df.filter(col("dataset") != dataset)
             
-            # Write back to Delta table
+            # Write back to Delta table (Unity Catalog managed)
             filtered_df.write \
                 .format("delta") \
                 .mode("overwrite") \
-                .option("path", self.watermark_table_path) \
-                .saveAsTable("watermark_table")
+                .saveAsTable(self.watermark_table_name)
             
             self.logger.info(f"Deleted watermark for dataset: {dataset}")
             
@@ -281,14 +278,14 @@ class WatermarkManager:
             Dictionary with table information
         """
         try:
-            df = self.spark.read.format("delta").load(self.watermark_table_path)
+            df = self.spark.table(self.watermark_table_name)
             
             # Get basic statistics
             total_records = df.count()
             datasets = [row["dataset"] for row in df.select("dataset").distinct().collect()]
             
             info = {
-                "table_path": self.watermark_table_path,
+                "table_name": self.watermark_table_name,
                 "total_records": total_records,
                 "datasets": datasets,
                 "schema": df.schema.json()

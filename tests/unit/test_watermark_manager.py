@@ -64,20 +64,20 @@ class TestWatermarkManager:
         with patch.object(WatermarkManager, '_ensure_watermark_table_exists'):
             manager = WatermarkManager(
                 spark=mock_spark,
-                watermark_table_path="/tmp/test_watermarks"
+                watermark_table_name="test_watermarks"
             )
-        return manager
+            return manager
     
     def test_init(self, mock_spark):
         """Test WatermarkManager initialization."""
         with patch.object(WatermarkManager, '_ensure_watermark_table_exists'):
             manager = WatermarkManager(
                 spark=mock_spark,
-                watermark_table_path="/tmp/test_watermarks"
+                watermark_table_name="test_watermarks"
             )
         
         assert manager.spark == mock_spark
-        assert manager.watermark_table_path == "/tmp/test_watermarks"
+        assert manager.watermark_table_name == "test_watermarks"
         assert manager.logger is not None
     
     def test_get_watermark_not_found(self, watermark_manager):
@@ -85,7 +85,7 @@ class TestWatermarkManager:
         # Mock empty result
         mock_df = Mock()
         mock_df.filter.return_value.collect.return_value = []
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         
         # Mock the col function to avoid Spark context issues
         with patch('src.libraries.utils.watermark_manager.col') as mock_col:
@@ -109,7 +109,7 @@ class TestWatermarkManager:
         # Mock DataFrame operations
         mock_df = Mock()
         mock_df.filter.return_value.collect.return_value = [mock_record]
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         
         # Mock the col function to avoid Spark context issues
         with patch('src.libraries.utils.watermark_manager.col') as mock_col:
@@ -126,7 +126,7 @@ class TestWatermarkManager:
         # Mock DataFrame operations
         mock_df = Mock()
         mock_df.filter.return_value.union.return_value = mock_df
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         watermark_manager.spark.createDataFrame.return_value = mock_df
         
         # Mock write operations - create a proper chain
@@ -178,7 +178,7 @@ class TestWatermarkManager:
         # Mock DataFrame operations
         mock_df = Mock()
         mock_df.collect.return_value = [mock_record1, mock_record2]
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         
         result = watermark_manager.get_all_watermarks()
         
@@ -192,7 +192,7 @@ class TestWatermarkManager:
         # Mock DataFrame operations
         mock_df = Mock()
         mock_df.filter.return_value = mock_df
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         
         # Mock write operations - create a proper chain
         mock_write = Mock()
@@ -225,11 +225,11 @@ class TestWatermarkManager:
             Mock(__getitem__=Mock(return_value="bronze.customers"))
         ]
         mock_df.schema.json.return_value = '{"type": "struct", "fields": []}'
-        watermark_manager.spark.read.format.return_value.load.return_value = mock_df
+        watermark_manager.spark.table.return_value = mock_df
         
         result = watermark_manager.get_watermark_table_info()
         
-        assert result["table_path"] == "/tmp/test_watermarks"
+        assert result["table_name"] == "test_watermarks"
         assert result["total_records"] == 2
         assert "silver.payments" in result["datasets"]
         assert "bronze.customers" in result["datasets"]

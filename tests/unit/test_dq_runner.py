@@ -22,12 +22,12 @@ class TestDQRunner:
         assert runner.sql_engine is None
         
     @patch('src.libraries.dq_runner.databricks_runner.DQRunner._init_watermark_manager')
-    def test_init_with_watermark_path(self, mock_init_watermark):
-        """Test DQRunner initialization with custom watermark path."""
+    def test_init_with_watermark_table_name(self, mock_init_watermark):
+        """Test DQRunner initialization with custom watermark table name."""
         mock_watermark_manager = Mock()
         mock_init_watermark.return_value = mock_watermark_manager
         
-        runner = DQRunner(watermark_table_path="/custom/watermarks")
+        runner = DQRunner(watermark_table_name="custom_watermarks")
         assert runner is not None
 
 

@@ -1,5 +1,6 @@
 -- DQ Watermarks Store (Delta Lake)
 -- Tracks high water marks for incremental data quality processing
+-- In Unity Catalog, table location is managed by the catalog and schema
 
 CREATE TABLE IF NOT EXISTS dq_watermarks (
   dataset STRING NOT NULL COMMENT 'Dataset name (e.g., silver.payments)',

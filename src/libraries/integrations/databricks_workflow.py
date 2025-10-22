@@ -159,7 +159,7 @@ class DatabricksWorkflowManager:
                 job_cluster_key="dq_cluster",
                 python_wheel_task=PythonWheelTask(
                     package_name="dq-accelerator",
-                    entry_point="jobs.databricks_job_entries:run_incremental_job",
+                    entry_point="dq_runner.databricks_job_entries:run_incremental_job",
                     parameters=[
                         "--rules-file", rules_file_path,
                         "--dataset", dataset,
@@ -175,7 +175,7 @@ class DatabricksWorkflowManager:
                 job_cluster_key="dq_cluster",
                 python_wheel_task=PythonWheelTask(
                     package_name="dq-accelerator",
-                    entry_point="jobs.databricks_job_entries:run_full_job",
+                    entry_point="dq_runner.databricks_job_entries:run_full_job",
                     parameters=[
                         "--rules-file", rules_file_path,
                         "--dataset", dataset
