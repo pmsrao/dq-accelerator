@@ -206,10 +206,10 @@ sequenceDiagram
 ```mermaid
 graph TD
     A[Start DQ Run] --> B[Load Watermark]
-    B --> C[Identify New Partitions]
-    C --> D{Partitions Found?}
-    D -->|Yes| E[Execute Rules for Partitions]
-    D -->|No| F[Skip Execution]
+    B --> C[Identify New Data Since Last Run]
+    C --> D{New Data Found?}
+    D -->|Yes| E[Execute Rules for New Data]
+    D -->|No| F[Skip Execution - No New Data]
     E --> G[Store Results]
     G --> H[Update Watermark]
     H --> I[End]
@@ -288,6 +288,22 @@ Examples:
 ### Delta Lake Tables
 
 #### DQ Results Store
+
+| Attribute | Data Type | Description |
+|-----------|-----------|-------------|
+| `run_id` | STRING | Unique identifier for each DQ run execution |
+| `rule_id` | STRING | Unique identifier for the DQ rule (e.g., payments.amount.non_negative.v01) |
+| `dataset` | STRING | Dataset name being validated (e.g., silver.payments) |
+| `partition_value` | STRING | Value of the partition column for this execution |
+| `engine` | STRING | Execution engine used (soda, sql) |
+| `pass_flag` | BOOLEAN | Whether the rule passed (true) or failed (false) |
+| `execution_time_ms` | BIGINT | Rule execution time in milliseconds |
+| `started_ts` | TIMESTAMP | When the rule execution started |
+| `ended_ts` | TIMESTAMP | When the rule execution completed |
+| `error_message` | STRING | Error details if rule execution failed |
+| `measurements` | MAP<STRING, STRING> | Key-value pairs of measured values (e.g., row_count, null_count) |
+| `metadata` | MAP<STRING, STRING> | Additional metadata for the rule execution |
+
 ```sql
 CREATE TABLE dq_results (
   run_id STRING,
@@ -307,6 +323,20 @@ PARTITIONED BY (dataset, partition_value)
 ```
 
 #### Metrics Mart
+
+| Attribute | Data Type | Description |
+|-----------|-----------|-------------|
+| `dataset` | STRING | Dataset name for which metrics are calculated |
+| `partition_value` | STRING | Partition value for which metrics are calculated |
+| `run_date` | DATE | Date when the DQ run was executed |
+| `total_rules` | BIGINT | Total number of rules executed for this dataset/partition |
+| `passed_rules` | BIGINT | Number of rules that passed validation |
+| `failed_rules` | BIGINT | Number of rules that failed validation |
+| `pass_rate` | DOUBLE | Percentage of rules that passed (passed_rules / total_rules * 100) |
+| `avg_execution_time_ms` | DOUBLE | Average execution time across all rules in milliseconds |
+| `critical_failures` | BIGINT | Number of critical severity rule failures |
+| `high_severity_failures` | BIGINT | Number of high severity rule failures |
+
 ```sql
 CREATE TABLE dq_metrics_mart (
   dataset STRING,
@@ -324,6 +354,15 @@ PARTITIONED BY (run_date)
 ```
 
 #### Watermark Store
+
+| Attribute | Data Type | Description |
+|-----------|-----------|-------------|
+| `dataset` | STRING | Dataset name (e.g., silver.payments) |
+| `watermark_column` | STRING | Column used for incremental processing (e.g., event_date, batch_id) |
+| `watermark_value` | STRING | Last successfully processed value of the watermark column |
+| `dq_run_completed_ts` | TIMESTAMP | Timestamp when the DQ run completed successfully |
+| `updated_ts` | TIMESTAMP | Timestamp when this watermark record was last updated |
+
 ```sql
 CREATE TABLE dq_watermarks (
   dataset STRING NOT NULL COMMENT 'Dataset name (e.g., silver.payments)',
@@ -545,13 +584,68 @@ alerts:
 
 ### Dashboard Metrics
 
-Key metrics for monitoring dashboards:
+Key metrics for monitoring dashboards with their data sources:
 
-- **DQ Health Score**: Overall data quality health
-- **Rule Performance**: Execution times and success rates
-- **Trend Analysis**: Quality trends over time
-- **SLA Compliance**: SLA adherence and breach analysis
-- **Anomaly Detection**: Unusual patterns and data drift
+| Metric Category | Metric Name | Description | Primary Data Source | Supporting Tables |
+|----------------|-------------|-------------|-------------------|-------------------|
+| **DQ Health Score** | Overall Health Score | Weighted average of all dataset health scores | `dq_metrics_mart` | `dq_results`, `dq_watermarks` |
+| | Dataset Health Score | Pass rate and failure severity for each dataset | `dq_metrics_mart` | `dq_results` |
+| | Critical Issues Count | Number of critical severity failures | `dq_metrics_mart` | `dq_results` |
+| **Rule Performance** | Rule Execution Time | Average execution time per rule | `dq_results` | `dq_metrics_mart` |
+| | Rule Success Rate | Percentage of successful rule executions | `dq_results` | `dq_metrics_mart` |
+| | Engine Performance | Performance comparison between Soda and SQL engines | `dq_results` | `dq_metrics_mart` |
+| **Trend Analysis** | Daily Pass Rate Trend | Pass rate trends over time | `dq_metrics_mart` | `dq_results` |
+| | Rule Failure Trends | Failure patterns and frequency | `dq_results` | `dq_metrics_mart` |
+| | Data Volume Trends | Processing volume trends | `dq_results` | `dq_watermarks` |
+| **SLA Compliance** | SLA Breach Count | Number of SLA violations | `dq_metrics_mart` | `dq_results` |
+| | SLA Compliance Rate | Percentage of SLA adherence | `dq_metrics_mart` | `dq_results` |
+| | Critical SLA Breaches | Critical severity SLA violations | `dq_results` | `dq_metrics_mart` |
+| **Anomaly Detection** | Data Drift Detection | Unusual data patterns and distributions | `dq_results` | `dq_metrics_mart` |
+| | Performance Anomalies | Unusual execution time patterns | `dq_results` | `dq_metrics_mart` |
+| | Volume Anomalies | Unusual data volume patterns | `dq_results` | `dq_watermarks` |
+| **Operational Metrics** | Processing Latency | Time from data arrival to DQ completion | `dq_watermarks` | `dq_results` |
+| | Data Freshness | Time since last successful DQ run | `dq_watermarks` | `dq_results` |
+| | Incremental Efficiency | Percentage of data processed incrementally | `dq_watermarks` | `dq_results` |
+| **Business Impact** | Data Quality Score | Business-weighted quality score | `dq_metrics_mart` | `dq_results` |
+| | Downstream Impact | Impact on dependent systems | `dq_results` | `dq_metrics_mart` |
+| | Cost of Poor Quality | Estimated cost of data quality issues | `dq_results` | `dq_metrics_mart` |
+
+#### Metric Calculation Examples
+
+**DQ Health Score Calculation:**
+```sql
+-- Overall Health Score (0-100)
+SELECT 
+  AVG(pass_rate) * 100 as overall_health_score
+FROM dq_metrics_mart 
+WHERE run_date >= CURRENT_DATE - 7;
+```
+
+**Rule Performance Analysis:**
+```sql
+-- Rule execution time trends
+SELECT 
+  rule_id,
+  AVG(execution_time_ms) as avg_execution_time,
+  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY execution_time_ms) as p95_execution_time
+FROM dq_results 
+WHERE started_ts >= CURRENT_DATE - 30
+GROUP BY rule_id;
+```
+
+**SLA Compliance Monitoring:**
+```sql
+-- SLA breach detection
+SELECT 
+  dataset,
+  COUNT(*) as total_rules,
+  SUM(CASE WHEN pass_flag = false THEN 1 ELSE 0 END) as failed_rules,
+  (SUM(CASE WHEN pass_flag = false THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as failure_rate
+FROM dq_results 
+WHERE started_ts >= CURRENT_DATE - 1
+GROUP BY dataset
+HAVING (SUM(CASE WHEN pass_flag = false THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) > 5.0;
+```
 
 ## 10. Performance Optimization
 
