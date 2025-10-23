@@ -238,7 +238,7 @@ graph TD
 
 ```yaml
 # Dataset-level configuration
-dataset: silver.payments
+dataset: silver.payments  # Resolved to catalog.schema.table based on environment
 product: Payments
 domain: Trading
 owner: payments_dp@company.com
@@ -270,6 +270,27 @@ rules:
     sampling:
       mode: none
 ```
+
+### Environment-Aware Configuration
+
+The framework supports environment-aware table resolution:
+
+```yaml
+# Environment configuration (config/dev.yaml)
+catalog: dev_catalog
+default_schema: silver
+table_prefix: dev_
+
+# Environment configuration (config/prod.yaml)  
+catalog: main
+default_schema: silver
+table_prefix: ""
+```
+
+**Table Name Resolution:**
+- `silver.payments` → `dev_catalog.silver.payments` (dev)
+- `silver.payments` → `main.silver.payments` (prod)
+- `payments` → `main.silver.payments` (prod with default schema)
 
 ### Rule ID Convention
 
@@ -491,14 +512,26 @@ class SqlEngine:
 
 ```python
 # In Databricks Workflow
-from src.dq_runner import DQRunner
+from src.libraries.dq_runner.databricks_runner import DQRunner
 
 def run_dq_checks():
-    runner = DQRunner(config=load_config())
-    results, summary = runner.execute_rules(
-        rules_spec=load_rules("rules/payments.yaml"),
+    runner = DQRunner()
+    summary = runner.run_incremental(
+        rule_path="rules/payments.yaml",  # File-based loading
         dataset="silver.payments",
-        partition_value=get_current_partition()
+        watermark_column="event_date",
+        environment="prod"  # Environment-aware catalog resolution
+    )
+    return summary.dict()
+
+# Or with folder-based rule loading
+def run_dq_checks_folder():
+    runner = DQRunner()
+    summary = runner.run_incremental(
+        rule_path="rules/domain_rules/",  # Folder-based loading
+        dataset="silver.payments", 
+        watermark_column="event_date",
+        environment="prod"
     )
     return summary.dict()
 ```
@@ -509,14 +542,15 @@ def run_dq_checks():
 # In Airflow DAG
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from src.dq_runner import DQRunner
+from src.libraries.dq_runner.databricks_runner import DQRunner
 
 def run_dq_task(**context):
     runner = DQRunner()
-    results, summary = runner.execute_rules(
-        rules_spec=load_rules("rules/payments.yaml"),
+    summary = runner.run_incremental(
+        rule_path="rules/payments.yaml",  # File or folder path
         dataset=context["params"]["dataset"],
-        partition_value=context["ds"]
+        watermark_column=context["params"]["watermark_column"],
+        environment=context["params"].get("environment", "prod")
     )
     
     if summary.failed_rules > 0:

@@ -81,20 +81,86 @@ rules:
 ```
 
 ### 2. Run DQ Rules
+
+#### File-Based Rule Loading
 ```python
 from src.libraries.dq_runner.databricks_runner import DQRunner
 
 # Initialize the DQ Runner
 dq_runner = DQRunner()
 
-# Run incremental processing
+# Run incremental processing with single file
 summary = dq_runner.run_incremental(
-    rule_file_path="payments_rules.yaml",
+    rule_path="payments_rules.yaml",  # Single file
     dataset="silver.payments",
-    watermark_column="event_date"
+    watermark_column="event_date",
+    environment="dev"  # Environment-aware catalog resolution
 )
 
 print(f"Results: {summary.passed_rules}/{summary.total_rules} rules passed")
+```
+
+#### Folder-Based Rule Loading
+```python
+# Run with multiple rule files from a folder
+summary = dq_runner.run_incremental(
+    rule_path="rules/domain_rules/",  # Folder containing multiple YAML files
+    dataset="silver.payments",
+    watermark_column="event_date",
+    environment="prod"
+)
+
+print(f"Results: {summary.passed_rules}/{summary.total_rules} rules passed")
+print(f"Source files: {summary.metadata.get('source_files', [])}")
+```
+
+## 🌍 Environment-Aware Configuration
+
+The DQ Accelerator supports environment-aware table resolution and configuration:
+
+### 1. Environment-Specific Catalogs
+```python
+# Development environment
+summary = dq_runner.run_incremental(
+    rule_path="rules/payments.yaml",
+    dataset="silver.payments",  # Resolves to dev_catalog.silver.payments
+    watermark_column="event_date",
+    environment="dev"
+)
+
+# Production environment  
+summary = dq_runner.run_incremental(
+    rule_path="rules/payments.yaml",
+    dataset="silver.payments",  # Resolves to main.silver.payments
+    watermark_column="event_date", 
+    environment="prod"
+)
+```
+
+### 2. SQL Query Resolution
+```sql
+-- Original SQL in rule file
+FROM silver.payments p
+LEFT JOIN silver.accounts a ON p.account_id = a.account_id
+
+-- Automatically resolved for prod environment
+FROM main.silver.payments p
+LEFT JOIN main.silver.accounts a ON p.account_id = a.account_id
+```
+
+### 3. Rule Aggregation
+```python
+# Load rules from multiple files in a folder
+summary = dq_runner.run_incremental(
+    rule_path="rules/domain_rules/",  # Aggregates all YAML files
+    dataset="silver.payments",
+    watermark_column="event_date",
+    environment="prod"
+)
+
+# Access metadata about loaded rules
+print(f"Total rules: {summary.metadata['total_rules']}")
+print(f"Source files: {summary.metadata['source_files']}")
 ```
 
 ## 🔄 Incremental Processing
@@ -118,16 +184,18 @@ PARTITIONED BY (dataset);
 ```python
 # First run - processes all data
 summary1 = dq_runner.run_incremental(
-    rule_file_path="payments_rules.yaml",
+    rule_path="payments_rules.yaml",  # File or folder
     dataset="silver.payments",
-    watermark_column="event_date"
+    watermark_column="event_date",
+    environment="dev"
 )
 
 # Subsequent runs - only process new data
 summary2 = dq_runner.run_incremental(
-    rule_file_path="payments_rules.yaml",
-    dataset="silver.payments",
-    watermark_column="event_date"
+    rule_path="payments_rules.yaml",
+    dataset="silver.payments", 
+    watermark_column="event_date",
+    environment="dev"
 )
 ```
 
@@ -143,11 +211,12 @@ workflow_manager = DatabricksWorkflowManager()
 # Create a DQ job
 job_id = workflow_manager.create_dq_job(
     job_name="daily_payments_dq",
-    rules_file_path="payments_rules.yaml",
+    rules_path="payments_rules.yaml",  # File or folder
     dataset="silver.payments",
     schedule="0 2 * * *",  # Daily at 2 AM
     incremental=True,
-    watermark_column="event_date"
+    watermark_column="event_date",
+    environment="prod"  # Environment-aware configuration
 )
 ```
 
@@ -239,16 +308,43 @@ make build
 ### Environment Configuration
 ```yaml
 # config/prod.yaml
-databricks:
-  workspace_url: "https://prod-workspace.cloud.databricks.com"
-  default_cluster:
-    spark_version: "13.3.x-scala2.12"
-    node_type_id: "i3.xlarge"
-    num_workers: 4
+catalog: main
+default_schema: silver
+table_prefix: ""
 
-watermark:
-  table_path: "/prod/dq_watermarks"
-  retention_days: 90
+# Data quality thresholds
+dq_thresholds:
+  pass_rate_warning: 99.0
+  pass_rate_critical: 98.0
+  execution_time_warning_ms: 60000
+  execution_time_critical_ms: 120000
+
+# Notification settings
+notifications:
+  enabled: true
+  channels: ["slack", "email", "pagerduty"]
+  slack_channel: "#data-quality-alerts"
+  email_recipients: ["data-team@company.com"]
+```
+
+### Development Environment
+```yaml
+# config/dev.yaml
+catalog: dev_catalog
+default_schema: silver
+table_prefix: dev_
+
+# More lenient thresholds for development
+dq_thresholds:
+  pass_rate_warning: 95.0
+  pass_rate_critical: 90.0
+  execution_time_warning_ms: 30000
+  execution_time_critical_ms: 60000
+
+# Minimal notifications for dev
+notifications:
+  enabled: false
+  channels: []
 ```
 
 ### Workflow Configuration
@@ -258,6 +354,7 @@ workflows:
   daily_dq_processing:
     schedule: "0 2 * * *"
     incremental: true
+    environment: "prod"  # Environment-aware configuration
     datasets:
       - "silver.payments"
       - "silver.accounts"
@@ -265,7 +362,31 @@ workflows:
     dataset_configs:
       "silver.payments":
         watermark_column: "event_date"
-        rules_file: "src/schemas/examples/payments_rules.yaml"
+        rules_path: "src/schemas/examples/payments_rules.yaml"  # File or folder
+        environment: "prod"
+```
+
+### Rule Organization Examples
+
+#### File-Based Organization
+```
+rules/
+├── payments_rules.yaml
+├── customers_rules.yaml
+└── transactions_rules.yaml
+```
+
+#### Folder-Based Organization
+```
+rules/
+├── domain_rules/
+│   ├── payments/
+│   │   ├── basic_checks.yaml
+│   │   └── advanced_checks.yaml
+│   └── customers/
+│       └── customer_checks.yaml
+└── cross_domain/
+    └── referential_integrity.yaml
 ```
 
 ## 🚨 Troubleshooting
