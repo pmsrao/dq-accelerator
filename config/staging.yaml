@@ -1,32 +1,23 @@
 # Staging Environment Configuration
-environment: staging
+catalog: staging_catalog
+default_schema: silver
+table_prefix: staging_
 
-# Databricks Configuration
-databricks:
-  workspace_url: "https://staging-workspace.cloud.databricks.com"
-  cluster_id: "staging-cluster-id"
-  
-# Data Quality Configuration
-dq:
-  default_engine: "soda"
-  default_severity: "high"
-  default_run_policy: "soft_fail"
-  max_retries: 3
-  retry_delay_seconds: 30
-  
-# Storage Configuration
-storage:
-  results_table: "staging_dq_results"
-  metrics_table: "staging_dq_metrics"
-  watermark_table: "staging_dq_watermarks"
-  
-# Logging Configuration
-logging:
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  
-# Notification Configuration
+# Environment-specific settings
+spark_config:
+  spark.sql.adaptive.enabled: true
+  spark.sql.adaptive.coalescePartitions.enabled: true
+  spark.sql.adaptive.skewJoin.enabled: true
+
+# Data quality thresholds
+dq_thresholds:
+  pass_rate_warning: 98.0
+  pass_rate_critical: 95.0
+  execution_time_warning_ms: 45000
+  execution_time_critical_ms: 90000
+
+# Notification settings
 notifications:
   enabled: true
-  slack_webhook: "https://hooks.slack.com/services/staging/webhook"
-  email_recipients: ["dq-team@company.com"]
+  channels: ["slack"]
+  slack_channel: "#data-quality-staging"

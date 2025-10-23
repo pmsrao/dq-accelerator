@@ -1,32 +1,26 @@
 # Production Environment Configuration
-environment: prod
+catalog: main
+default_schema: silver
+table_prefix: ""
 
-# Databricks Configuration
-databricks:
-  workspace_url: "https://prod-workspace.cloud.databricks.com"
-  cluster_id: "prod-cluster-id"
-  
-# Data Quality Configuration
-dq:
-  default_engine: "soda"
-  default_severity: "high"
-  default_run_policy: "hard_fail"
-  max_retries: 5
-  retry_delay_seconds: 60
-  
-# Storage Configuration
-storage:
-  results_table: "prod_dq_results"
-  metrics_table: "prod_dq_metrics"
-  watermark_table: "prod_dq_watermarks"
-  
-# Logging Configuration
-logging:
-  level: "WARNING"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  
-# Notification Configuration
+# Environment-specific settings
+spark_config:
+  spark.sql.adaptive.enabled: true
+  spark.sql.adaptive.coalescePartitions.enabled: true
+  spark.sql.adaptive.skewJoin.enabled: true
+  spark.sql.adaptive.localShuffleReader.enabled: true
+
+# Data quality thresholds
+dq_thresholds:
+  pass_rate_warning: 99.0
+  pass_rate_critical: 98.0
+  execution_time_warning_ms: 60000
+  execution_time_critical_ms: 120000
+
+# Notification settings
 notifications:
   enabled: true
-  slack_webhook: "https://hooks.slack.com/services/prod/webhook"
-  email_recipients: ["dq-team@company.com", "data-engineering@company.com"]
+  channels: ["slack", "email", "pagerduty"]
+  slack_channel: "#data-quality-alerts"
+  email_recipients: ["data-team@company.com", "platform-team@company.com"]
+  pagerduty_service: "data-quality-service"

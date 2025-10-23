@@ -25,11 +25,12 @@ def setup_logging() -> logging.Logger:
 def run_incremental_job():
     """Entry point for incremental DQ job execution in Databricks."""
     parser = argparse.ArgumentParser(description="Incremental DQ Job Execution (Databricks)")
-    parser.add_argument("--rules-file", required=True, help="Path to DQ rules YAML file")
+    parser.add_argument("--rules-path", required=True, help="Path to DQ rules YAML file or folder")
     parser.add_argument("--dataset", required=True, help="Dataset name to process")
     parser.add_argument("--watermark-column", required=True, help="Watermark column name")
-    parser.add_argument("--watermark-table-path", default="/tmp/dq_watermarks", 
-                       help="Path to watermark table")
+    parser.add_argument("--watermark-table-name", default="dq_watermarks", 
+                       help="Name of watermark table (Unity Catalog managed)")
+    parser.add_argument("--environment", help="Environment name for catalog/schema resolution (dev, staging, prod)")
     
     args = parser.parse_args()
     logger = setup_logging()
@@ -39,15 +40,16 @@ def run_incremental_job():
         
         # Initialize Databricks DQ Runner
         dq_runner = DQRunner(
-            watermark_table_path=args.watermark_table_path
+            watermark_table_name=args.watermark_table_name
         )
         logger.info("Databricks DQ Runner initialized")
         
         # Run incremental DQ rules
         summary = dq_runner.run_incremental(
-            rule_file_path=args.rules_file,
+            rule_path=args.rules_path,
             dataset=args.dataset,
-            watermark_column=args.watermark_column
+            watermark_column=args.watermark_column,
+            environment=args.environment
         )
         
         logger.info(f"Incremental DQ job completed: {summary.passed_rules}/{summary.total_rules} rules passed")
@@ -67,10 +69,11 @@ def run_incremental_job():
 def run_full_job():
     """Entry point for full DQ job execution in Databricks."""
     parser = argparse.ArgumentParser(description="Full DQ Job Execution (Databricks)")
-    parser.add_argument("--rules-file", required=True, help="Path to DQ rules YAML file")
+    parser.add_argument("--rules-path", required=True, help="Path to DQ rules YAML file or folder")
     parser.add_argument("--dataset", required=True, help="Dataset name to process")
-    parser.add_argument("--watermark-table-path", default="/tmp/dq_watermarks", 
-                       help="Path to watermark table")
+    parser.add_argument("--watermark-table-name", default="dq_watermarks", 
+                       help="Name of watermark table (Unity Catalog managed)")
+    parser.add_argument("--environment", help="Environment name for catalog/schema resolution (dev, staging, prod)")
     
     args = parser.parse_args()
     logger = setup_logging()
@@ -80,7 +83,7 @@ def run_full_job():
         
         # Initialize Databricks DQ Runner
         dq_runner = DQRunner(
-            watermark_table_path=args.watermark_table_path
+            watermark_table_name=args.watermark_table_name
         )
         logger.info("Databricks DQ Runner initialized")
         

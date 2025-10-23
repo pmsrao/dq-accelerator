@@ -1,0 +1,51 @@
+# Customers Data Quality Rules
+dataset: silver.customers
+product: Customer Management
+domain: CRM
+owner: crm_team@company.com
+
+# Partitioning configuration
+partitions:
+  by: created_date
+  format: yyyy-MM-dd
+
+# Default settings
+defaults:
+  severity: medium
+  engine: soda
+  run_policy: soft_fail
+
+# Customer validation rules
+rules:
+  - id: customers.email.valid_format.v01
+    dq_category: validity
+    dq_check_type: format_check
+    engine: sql
+    sql: |
+      SELECT COUNT(*) AS violations
+      FROM silver.customers
+      WHERE email NOT LIKE '%@%.%'
+        AND created_date = '${PARTITION_VALUE}'
+    threshold: { operator: "=", operand: 0 }
+    severity: high
+    sla:
+      target_pass_rate: 99.0
+      window_days: 7
+
+  - id: customers.pk.unique.v01
+    dq_category: uniqueness
+    dq_check_type: uniqueness
+    engine: soda
+    keys: [customer_id]
+    sla:
+      target_pass_rate: 100.0
+      window_days: 7
+
+  - id: customers.name.not_null.v01
+    dq_category: completeness
+    dq_check_type: not_null
+    engine: soda
+    columns: [first_name, last_name]
+    sla:
+      target_pass_rate: 100.0
+      window_days: 7

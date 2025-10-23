@@ -6,9 +6,11 @@ It assumes 'spark' is available globally and focuses on Databricks-specific feat
 """
 
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -118,40 +120,180 @@ class DQRunner:
             spark_session = self._get_spark_session()
             self.sql_engine = SqlEngine(spark_session)
     
-    def load_rules(self, rule_file_path: str) -> Dict[str, Any]:
+    def load_rules(self, rule_path: str, environment: Optional[str] = None) -> Dict[str, Any]:
         """
-        Load DQ rules from YAML file.
+        Load DQ rules from file or folder with environment-aware configuration.
         
         Args:
-            rule_file_path: Path to the YAML rule file
+            rule_path: Path to YAML file or folder containing rule files
+            environment: Environment name for catalog/schema resolution (dev, staging, prod)
             
         Returns:
-            Dictionary containing rule specification
+            Dictionary containing aggregated rule specification
         """
         try:
-            with open(rule_file_path, 'r') as f:
-                rules_spec = yaml.safe_load(f)
+            rule_path = Path(rule_path)
             
-            self.logger.info(f"Loaded {len(rules_spec.get('rules', []))} rules from {rule_file_path}")
+            if rule_path.is_file():
+                # Single file loading
+                rules_spec = self._load_single_rule_file(rule_path, environment)
+                self.logger.info(f"Loaded {len(rules_spec.get('rules', []))} rules from {rule_path}")
+                return rules_spec
+                
+            elif rule_path.is_dir():
+                # Folder-based loading
+                rules_spec = self._load_rules_from_folder(rule_path, environment)
+                total_rules = len(rules_spec.get('rules', []))
+                self.logger.info(f"Loaded {total_rules} rules from {len(list(rule_path.glob('*.yaml')))} files in {rule_path}")
+                return rules_spec
+            else:
+                raise FileNotFoundError(f"Rule path not found: {rule_path}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load rules from {rule_path}: {e}")
+            raise
+    
+    def _load_single_rule_file(self, rule_file: Path, environment: Optional[str] = None) -> Dict[str, Any]:
+        """Load rules from a single YAML file with environment resolution."""
+        with open(rule_file, 'r') as f:
+            rules_spec = yaml.safe_load(f)
+        
+        # Resolve environment-aware table names
+        if environment:
+            rules_spec = self._resolve_environment_config(rules_spec, environment)
+        
+        return rules_spec
+    
+    def _load_rules_from_folder(self, rule_folder: Path, environment: Optional[str] = None) -> Dict[str, Any]:
+        """Load and aggregate rules from multiple YAML files in a folder."""
+        aggregated_rules = {
+            'rules': [],
+            'metadata': {
+                'source_files': [],
+                'total_rules': 0,
+                'environment': environment
+            }
+        }
+        
+        # Find all YAML files in the folder
+        yaml_files = list(rule_folder.glob('*.yaml')) + list(rule_folder.glob('*.yml'))
+        
+        if not yaml_files:
+            self.logger.warning(f"No YAML files found in {rule_folder}")
+            return aggregated_rules
+        
+        for yaml_file in sorted(yaml_files):
+            try:
+                self.logger.debug(f"Loading rules from {yaml_file}")
+                file_rules = self._load_single_rule_file(yaml_file, environment)
+                
+                # Aggregate rules
+                if 'rules' in file_rules:
+                    aggregated_rules['rules'].extend(file_rules['rules'])
+                    aggregated_rules['metadata']['source_files'].append(str(yaml_file))
+                
+                # Merge metadata (use first file's metadata as base)
+                if len(aggregated_rules['rules']) == len(file_rules.get('rules', [])):
+                    for key, value in file_rules.items():
+                        if key not in ['rules', 'metadata']:
+                            aggregated_rules[key] = value
+                            
+            except Exception as e:
+                self.logger.error(f"Failed to load rules from {yaml_file}: {e}")
+                continue
+        
+        aggregated_rules['metadata']['total_rules'] = len(aggregated_rules['rules'])
+        return aggregated_rules
+    
+    def _resolve_environment_config(self, rules_spec: Dict[str, Any], environment: str) -> Dict[str, Any]:
+        """Resolve environment-specific configuration for catalog and schema."""
+        try:
+            # Load environment configuration
+            env_config = self._load_environment_config(environment)
+            
+            # Resolve dataset name with catalog
+            if 'dataset' in rules_spec:
+                original_dataset = rules_spec['dataset']
+                resolved_dataset = self._resolve_table_name(original_dataset, env_config)
+                rules_spec['dataset'] = resolved_dataset
+                self.logger.info(f"Resolved dataset: {original_dataset} -> {resolved_dataset}")
+            
+            # Resolve SQL queries with catalog references
+            if 'rules' in rules_spec:
+                for rule in rules_spec['rules']:
+                    if 'sql' in rule:
+                        rule['sql'] = self._resolve_sql_with_catalog(rule['sql'], env_config)
+            
             return rules_spec
             
         except Exception as e:
-            self.logger.error(f"Failed to load rules from {rule_file_path}: {e}")
-            raise
+            self.logger.warning(f"Failed to resolve environment config for {environment}: {e}")
+            return rules_spec
+    
+    def _load_environment_config(self, environment: str) -> Dict[str, Any]:
+        """Load environment-specific configuration."""
+        try:
+            config_path = f"config/{environment}.yaml"
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    return yaml.safe_load(f)
+            else:
+                # Return default configuration
+                return {
+                    'catalog': 'main',
+                    'default_schema': 'silver',
+                    'table_prefix': ''
+                }
+        except Exception as e:
+            self.logger.warning(f"Failed to load environment config: {e}")
+            return {'catalog': 'main', 'default_schema': 'silver'}
+    
+    def _resolve_table_name(self, dataset: str, env_config: Dict[str, Any]) -> str:
+        """Resolve table name with catalog and environment configuration."""
+        catalog = env_config.get('catalog', 'main')
+        
+        # If dataset already has catalog, use as-is
+        if '.' in dataset and len(dataset.split('.')) >= 3:
+            return dataset
+        
+        # If dataset is schema.table, add catalog
+        if '.' in dataset:
+            schema, table = dataset.split('.', 1)
+            return f"{catalog}.{schema}.{table}"
+        
+        # If dataset is just table name, add catalog and default schema
+        default_schema = env_config.get('default_schema', 'silver')
+        return f"{catalog}.{default_schema}.{dataset}"
+    
+    def _resolve_sql_with_catalog(self, sql: str, env_config: Dict[str, Any]) -> str:
+        """Resolve SQL queries with catalog references."""
+        catalog = env_config.get('catalog', 'main')
+        
+        # Replace schema.table references with catalog.schema.table
+        import re
+        pattern = r'\b(\w+)\.(\w+)\b'
+        
+        def replace_table_ref(match):
+            schema, table = match.groups()
+            return f"{catalog}.{schema}.{table}"
+        
+        return re.sub(pattern, replace_table_ref, sql)
     
     def run_incremental(
         self,
-        rule_file_path: str,
+        rule_path: str,
         dataset: str,
-        watermark_column: str
+        watermark_column: str,
+        environment: Optional[str] = None
     ) -> DQRunSummary:
         """
         Run DQ rules with incremental processing using watermarks.
         
         Args:
-            rule_file_path: Path to the YAML rule file
+            rule_path: Path to YAML file or folder containing rule files
             dataset: Dataset name to process
             watermark_column: Column used for watermarking
+            environment: Environment name for catalog/schema resolution
             
         Returns:
             DQRunSummary with execution results
@@ -159,7 +301,7 @@ class DQRunner:
         self.logger.info(f"Starting incremental DQ run for dataset: {dataset}")
         
         # Load and validate rules
-        rules_spec = self.load_rules(rule_file_path)
+        rules_spec = self.load_rules(rule_path, environment)
         check_compliance(rules_spec)
         
         # Get current watermark

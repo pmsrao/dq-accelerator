@@ -1,0 +1,46 @@
+# Payments Basic Data Quality Rules
+dataset: silver.payments
+product: Payments
+domain: Trading
+owner: payments_dp@company.com
+
+# Partitioning configuration
+partitions:
+  by: event_date
+  format: yyyy-MM-dd
+
+# Default settings
+defaults:
+  severity: high
+  engine: soda
+  run_policy: soft_fail
+
+# Basic validation rules
+rules:
+  - id: payments.amount.non_negative.v01
+    dq_category: validity
+    dq_check_type: value_range
+    engine: soda
+    columns: [amount]
+    params: { operator: ">=", operand: 0 }
+    sla:
+      target_pass_rate: 99.5
+      window_days: 7
+
+  - id: payments.pk.unique.v01
+    dq_category: uniqueness
+    dq_check_type: uniqueness
+    engine: soda
+    keys: [payment_id]
+    sla:
+      target_pass_rate: 100.0
+      window_days: 7
+
+  - id: payments.amount.not_null.v01
+    dq_category: completeness
+    dq_check_type: not_null
+    engine: soda
+    columns: [amount]
+    sla:
+      target_pass_rate: 100.0
+      window_days: 7
